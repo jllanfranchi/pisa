@@ -378,40 +378,67 @@ def find_index(val, bin_edges):
     val : scalar
         Value for which to find bin index
 
-    bin_edges : 1d numpy ndarray
-        Must be monotonically increasing, and all bins are adjacent
+    bin_edges : 1d numpy ndarray of 2 or more scalars
+        Must be monotonically increasing, and all bins are assumed to be
+        adjacent
 
     Returns
     -------
-    idx : int in [-1, num_bins]
+    bin_idx : int in [-1, num_bins]
+        -1 is returned for underflow or if `val` is nan. `num_bins` is returned
+        for overflow. Otherwise, for bin_edges[0] <= `val` <= bin_edges[-1],
+        0 <= `bin_idx` <= num_bins - 1
 
     """
     # TODO: support fast computation for lin and log binnings?
 
-    num_bins = len(bin_edges) - 1
+    num_edges = len(bin_edges)
+    num_bins = num_edges - 1
+    assert num_bins >= 1
+
     underflow_idx = -1
     overflow_idx = num_bins
 
     # First check: NaN or ouside binning?
     if np.isnan(val):
-        idx = underflow_idx
+        bin_idx = underflow_idx
     elif val < bin_edges[0]:
-        idx = underflow_idx
+        bin_idx = underflow_idx
     elif val > bin_edges[-1]:
-        idx = overflow_idx
+        bin_idx = overflow_idx
     else:
+        #
         # Binary search within binning (inclusive of left and right edges)
-        left_idx = 0
-        right_idx = num_bins
-        while left_idx < right_idx:
-            idx = left_idx + ((right_idx - left_idx) >> 1)
-            if val >= bin_edges[idx]:
-                left_idx = idx + 1
-            else:
-                right_idx = idx
-        idx = min(max(0, left_idx - 1), num_bins - 1)
+        #
 
-    return idx
+        # Initialize to point to left-most edge
+        left_edge_idx = 0
+
+        # Initialize to point to right-most edge
+        right_edge_idx = num_edges - 1
+
+        while left_edge_idx < right_edge_idx:
+            # See where value falls w.r.t. an edge ~midway between left and right edges
+            # ``>> 1``: integer division by 2 (i.e., divide w/ truncation)
+            test_edge_idx = (left_edge_idx + right_edge_idx) >> 1
+
+            # ``>=``: bin left edges are inclusive
+            if val >= bin_edges[test_edge_idx]:
+                left_edge_idx = test_edge_idx + 1
+            else:
+                right_edge_idx = test_edge_idx
+
+        # break condition of while loop is that left_edge_idx points to the
+        # right edge of the bin that `val` is inside of; that is one more than
+        # that _bin's_ index
+        bin_idx = left_edge_idx - 1
+
+        # Paranoia: In case of unforseen numerical issues, force clipping of
+        # returned bin index to [0, num_bins - 1] (any `val` outside of binning
+        # is already handled, so this should be valid)
+        bin_idx = min(max(0, bin_idx), num_bins - 1)
+
+    return bin_idx
 
 
 if FTYPE == np.float32:
@@ -556,58 +583,106 @@ def test_find_index():
     # Negative, positive, integer, non-integer, binary-unrepresentable (0.1) edges
     basic_bin_edges = [-1, -0.5, -0.1, 0, 0.1, 0.5, 1, 2, 3, 4]
 
-    # All combinations of bin edges w/ and w/o +/- inf as left & right bin edges
-    for le, re in [(None, None), (-np.inf, None), (None, np.inf), (-np.inf, np.inf)]:
-        bin_edges = deepcopy(basic_bin_edges)
-        if le is not None:
-            bin_edges = [le] + bin_edges
-        if re is not None:
-            bin_edges = bin_edges + [re]
-        bin_edges = np.array(bin_edges, dtype=FTYPE)
+    for basic_bin_edges in [
+        # Negative, positive, integer, non-integer, binary-unrepresentable (0.1) edges
+        [-1, -0.5, -0.1, 0, 0.1, 0.5, 1, 2, 3, 4],
+        # Will result in a single bin with edges [-np.inf, np.inf]
+        [],
+        # Will result in a single half-open bin either lower- or upper-edge
+        [0.1],
+        # Single bin with finite edges, and +/-np.inf left/right-bins-added variants
+        [-0.1, 0.1],
+    ]:
 
-        num_bins = len(bin_edges) - 1
-        underflow_idx = -1
-        overflow_idx = num_bins
+        # All combinations of bin edges w/ and w/o +/- inf as left & right bin edges
+        for le, re in [
+            (None, None),
+            (-np.inf, None),
+            (None, np.inf),
+            (-np.inf, np.inf)
+        ]:
+            bin_edges = deepcopy(basic_bin_edges)
+            if le is not None:
+                bin_edges = [le] + bin_edges
+            if re is not None:
+                bin_edges = bin_edges + [re]
+            if len(bin_edges) < 2:
+                continue
+            logging.debug("bin_edges being tested: %s", bin_edges)
+            bin_edges = np.array(bin_edges, dtype=FTYPE)
 
-        # Test +/-inf, nan, values on bin edges (including lower and upper
-        # edges), values in the middle of bins, values just below/above bin
-        # edges
-        res = np.finfo(FTYPE).resolution  # pylint: disable=no-member
-        test_vals = np.concatenate(
-            [
-                [-np.inf, +np.inf, np.nan],
-                bin_edges,
-                (bin_edges[:-1] + bin_edges[1:]) / 2,
-                [be - res for be in bin_edges],
-                [be + res for be in bin_edges],
-            ]
-        )
+            num_bins = len(bin_edges) - 1
+            underflow_idx = -1
+            overflow_idx = num_bins
 
-        for val in test_vals:
-            val = FTYPE(val)
+            #
+            # Construct test values to try out
+            #
 
-            np_histvals, _ = np.histogramdd([val], np.atleast_2d(bin_edges))
-            nonzero_indices = np.nonzero(np_histvals)[0]  # select first (& only) dim
-            if np.isnan(val):
-                assert len(nonzero_indices) == 0
-                expected_idx = underflow_idx
-            elif val < bin_edges[0]:
-                assert len(nonzero_indices) == 0
-                expected_idx = underflow_idx
-            elif val > bin_edges[-1]:
-                assert len(nonzero_indices) == 0
-                expected_idx = overflow_idx
-            else:
-                assert len(nonzero_indices) == 1
-                expected_idx = nonzero_indices[0]
+            non_finite_vals = [-np.inf, +np.inf, np.nan]
 
-            found_idx = find_index(val, bin_edges)
+            # Values within bins (i.e., not on edges)
+            inbin_vals = []
+            for idx in range(len(bin_edges) - 1):
+                lower_be = bin_edges[idx]
+                upper_be = bin_edges[idx + 1]
+                if np.isfinite(lower_be):
+                    if np.isfinite(upper_be):
+                        inbin_val = (lower_be + upper_be) / 2
+                    else:
+                        inbin_val = lower_be + 10.5
+                else:
+                    if np.isfinite(upper_be):
+                        inbin_val = upper_be - 10.5
+                    else:
+                        inbin_val = 10.5
+                inbin_vals.append(inbin_val)
 
-            if found_idx != expected_idx:
-                msg = "val={}, edges={}: Expected idx={}, found idx={}".format(
-                    val, bin_edges, expected_idx, found_idx
-                )
-                assert False, msg
+            # Values above/below bin edges by one unit of floating point
+            # accuracy
+            eps = np.finfo(FTYPE).eps  # pylint: disable=no-member
+            below_edges_vals = [FTYPE((1 - eps)*be) for be in bin_edges]
+            above_edges_vals = [FTYPE((1 + eps)*be) for be in bin_edges]
+
+            test_vals = np.concatenate(
+                [
+                    non_finite_vals,
+                    bin_edges,
+                    inbin_vals,
+                    below_edges_vals,
+                    above_edges_vals,
+                ]
+            )
+            logging.trace("test_vals = %s", test_vals)
+
+            #
+            # Run tests
+            #
+            for val in test_vals:
+                val = FTYPE(val)
+
+                np_histvals, _ = np.histogramdd([val], np.atleast_2d(bin_edges))
+                nonzero_indices = np.nonzero(np_histvals)[0]  # select first & only dim
+                if np.isnan(val):
+                    assert len(nonzero_indices) == 0
+                    expected_idx = underflow_idx
+                elif val < bin_edges[0]:
+                    assert len(nonzero_indices) == 0
+                    expected_idx = underflow_idx
+                elif val > bin_edges[-1]:
+                    assert len(nonzero_indices) == 0
+                    expected_idx = overflow_idx
+                else:
+                    assert len(nonzero_indices) == 1
+                    expected_idx = nonzero_indices[0]
+
+                found_idx = find_index(val, bin_edges)
+
+                if found_idx != expected_idx:
+                    msg = "val={}, edges={}: Expected idx={}, found idx={}".format(
+                        val, bin_edges, expected_idx, found_idx
+                    )
+                    assert False, msg
 
     logging.info('<< PASS : test_find_index >>')
 
