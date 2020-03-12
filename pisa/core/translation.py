@@ -586,15 +586,20 @@ def test_find_index():
         for val in test_vals:
             val = FTYPE(val)
 
+            np_histvals, _ = np.histogramdd([val], np.atleast_2d(bin_edges))
+            nonzero_indices = np.nonzero(np_histvals)[0]  # select first (& only) dim
             if np.isnan(val):
+                assert len(nonzero_indices) == 0
                 expected_idx = underflow_idx
             elif val < bin_edges[0]:
+                assert len(nonzero_indices) == 0
                 expected_idx = underflow_idx
             elif val > bin_edges[-1]:
+                assert len(nonzero_indices) == 0
                 expected_idx = overflow_idx
             else:
-                np_histvals, _ = np.histogramdd([val], np.atleast_2d(bin_edges))
-                expected_idx = np.nonzero(np_histvals)[0][0]
+                assert len(nonzero_indices) == 1
+                expected_idx = nonzero_indices[0]
 
             found_idx = find_index(val, bin_edges)
 
