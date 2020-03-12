@@ -360,38 +360,49 @@ def lookup(sample, flat_hist, binning):
 
 
 @myjit
-def find_index(x, bin_edges):
-    """simple binary search
+def find_index(val, bin_edges):
+    """Find index in binning for `val`. If `val` is below binning range, return
+    -1; if `val` is above binning range, return num_bins. Edge
+    inclusivity/exclusivity is defined as .. ::
 
-    direct transformations instead of search
+        [ bin 0 ) [ bin 1 ) ... [ bin num_bins-1 ]
+
+    Parameters
+    ----------
+    val : scalar
+        Value for which to find bin index
+
+    bin_edges : 1d numpy ndarray
+        Must be monotonically increasing, and all bins are adjacent
+
+    Returns
+    -------
+    idx : int in [-1, num_bins]
+
     """
-    # TODO: support lin and log binnings with
+    # TODO: support fast computation for lin and log binnings?
 
-    #
+    num_bins = len(bin_edges) - 1
+    underflow_idx = -1
+    overflow_idx = num_bins
+
     # First check: ouside binning
-    #
-    if x < bin_edges[0]:
-        return -1
-    elif x > bin_edges[-1]:
-        return len(bin_edges) - 1
+    if val < bin_edges[0]:
+        idx = underflow_idx
+    elif val > bin_edges[-1]:
+        idx = overflow_idx
     else:
-        #
-        # Now handle middle cases
-        #
-        first = 0
-        last = len(bin_edges) - 1
-        while first <= last:
-            i = int((first + last)/2)
-            if x > bin_edges[i]:
-
-                if x <= bin_edges[i+1]:
-                    break
-                else:
-                    first = i + 1
+        # Binary search within binning (inclusive of left and right edges)
+        left_idx = 0
+        right_idx = num_bins
+        while left_idx < right_idx:
+            idx = left_idx + ((right_idx - left_idx) >> 1)
+            if val >= bin_edges[idx]:
+                left_idx = idx + 1
             else:
-                last = i - 1
-
-    return i
+                right_idx = idx
+        idx = min(max(0, left_idx - 1), num_bins - 1)
+    return idx
 
 
 if FTYPE == np.float32:
@@ -524,19 +535,35 @@ def test_histogram():
 
     logging.info('<< PASS : test_histogram >>')
 
+
 def test_find_index():
     """Unit tests for `find_index` function"""
-    #
-    # Testing find_index
-    #
-    bin_edges = np.array([0., 1., 2., 3., 4.])
+    bin_edges = np.array([0, 1, 2, 3, 4], dtype=FTYPE)
 
-    test_value = np.array([-3., 0., 1., 3.5, 2., 3., 4., 4.5])
+    val_expected_idx = [
+        (-0.5, -1),
+        (-0, 0),
+        (0, 0),
+        (0.5, 0),
+        (1, 1),
+        (1.5, 1),
+        (2, 2),
+        (2.5, 2),
+        (3, 3),
+        (3.5, 3),
+        (4, 3),
+        (4.5, 4),
+    ]
 
-    expected_indices = np.array([-1, 0, 0, 3, 1, 2, 3, 4])
-    indices = [find_index(x, bin_edges) for x in test_value]
+    for val, expected_idx in val_expected_idx:
+        val = FTYPE(val)
+        found_idx = find_index(val, bin_edges)
+        if found_idx != expected_idx:
+            msg = "val={}, edges={}: Expected idx={}, found idx={}".format(
+                val, bin_edges, expected_idx, found_idx
+            )
+            assert False, msg
 
-    assert np.array_equal(indices, expected_indices)
     logging.info('<< PASS : test_find_index >>')
 
 
