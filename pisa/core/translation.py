@@ -586,15 +586,17 @@ def test_find_index():
     for basic_bin_edges in [
         # Negative, positive, integer, non-integer, binary-unrepresentable (0.1) edges
         [-1, -0.5, -0.1, 0, 0.1, 0.5, 1, 2, 3, 4],
-        # Will result in a single bin with edges [-np.inf, np.inf]
+
+        # A single infinite bin: [-np.inf, np.inf]
         [],
-        # Will result in a single half-open bin either lower- or upper-edge
+
+        # Half-infinite bins (lower or upper edge) & [-inf, .1, +inf]
         [0.1],
-        # Single bin with finite edges, and +/-np.inf left/right-bins-added variants
+
+        # Single bin with finite edges & +/-inf-edge(s)-added variants
         [-0.1, 0.1],
     ]:
-
-        # All combinations of bin edges w/ and w/o +/- inf as left & right bin edges
+        # Bin edges from above, w/ and w/o +/-inf as left and/or right edges
         for le, re in [
             (None, None),
             (-np.inf, None),
