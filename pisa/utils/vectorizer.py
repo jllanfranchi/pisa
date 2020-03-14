@@ -22,169 +22,187 @@ from pisa.utils.numba_tools import WHERE
 FX = 'f4' if FTYPE == np.float32 else 'f8'
 
 
-def multiply_and_scale(scale, value, out):
-    """Multiply and scale .. ::
+def imultiply_and_scale(scale, values, out):
+    """Multiply and scale augmented assignment .. ::
 
-        out *= scale * value
+        out[:] *= scale * values[:]
+
+    Parameters
+    ----------
+    scale : scalar
+    values : SmartArray
+    out : SmartArray
 
     """
-    multiply_and_scale_gufunc(scale, value.get(WHERE), out=out.get(WHERE))
+    imultiply_and_scale_gufunc(scale, values.get(WHERE), out=out.get(WHERE))
     out.mark_changed(WHERE)
 
 
-def scale(scale, value, out):
+def scale(scale, values, out):
     """Scale .. ::
 
-        out = scale * value
+        out[:] = scale * values[:]
+
+    Parameters
+    ----------
+    scale : scalar
+    values : array
+    out : array
 
     """
-    scale_gufunc(scale, value.get(WHERE), out=out.get(WHERE))
+    scale_gufunc(scale, values.get(WHERE), out=out.get(WHERE))
     out.mark_changed(WHERE)
 
 
-def multiply(multiplier, out):
-    """Multipy one array by another .. ::
+def imultiply(values, out):
+    """Multiply augmented assignment of two arrays .. ::
 
-        out *= multiplier
+        out[:] *= values[:]
+
+    Parameters
+    ----------
+    values : SmartArray
+    out : SmartArray
 
     """
-    multiply_gufunc(multiplier.get(WHERE),
-                    out=out.get(WHERE))
+    imultiply_gufunc(values.get(WHERE), out=out.get(WHERE))
     out.mark_changed(WHERE)
 
 
-def divide(divisor, out):
-    """Divide one array by another .. ::
+def idivide(values, out):
+    """Divide augmented assignment .. ::
 
-        out /= divisor
+        out[:] /= values[:]
 
     Division by zero results in 0 for that element.
     """
-    divide_gufunc(divisor.get(WHERE), out=out.get(WHERE))
+    idivide_gufunc(values.get(WHERE), out=out.get(WHERE))
     out.mark_changed(WHERE)
 
 
-def set(val, out):  # pylint: disable=redefined-builtin
+def set(values, out):  # pylint: disable=redefined-builtin
     """Set array values from another array .. ::
 
-        out[:] = val[:]
+        out[:] = values[:]
 
     """
-    set_gufunc(val.get(WHERE), out=out.get(WHERE))
+    set_gufunc(values.get(WHERE), out=out.get(WHERE))
     out.mark_changed(WHERE)
 
 
-def square(val, out):
+def square(values, out):
     """Square values .. ::
 
-        out = val**2
+        out[:] = values[:]**2
 
     """
-    square_gufunc(val.get(WHERE), out=out.get(WHERE))
+    square_gufunc(values.get(WHERE), out=out.get(WHERE))
     out.mark_changed(WHERE)
 
 
-def sqrt(val, out):
+def sqrt(values, out):
     """Square root of values .. ::
 
-        out = sqrt(val)
+        out[:] = sqrt(values[:])
 
     """
-    sqrt_gufunc(val.get(WHERE), out=out.get(WHERE))
+    sqrt_gufunc(values.get(WHERE), out=out.get(WHERE))
     out.mark_changed(WHERE)
 
 
-def replace(counts, min_count, vals, out):
-    """Replace `out[i]` with `vals[i]` when `counts[i]` > `min_count`"""
-    replace_gufunc(counts.get(WHERE),
-                   min_count,
-                   vals.get(WHERE),
-                   out=out.get(WHERE))
+def replace(counts, min_count, values, out):
+    """Replace `out[i]` with `values[i]` when `counts[i]` > `min_count`"""
+    replace_gufunc(
+        counts.get(WHERE),
+        min_count,
+        values.get(WHERE),
+        out=out.get(WHERE),
+    )
 
 
-@guvectorize([f'({FX}[:], {FX}[:], {FX}[:])'], '(),()->()', target=TARGET)
-def multiply_and_scale_gufunc(scale, value, out):
-    """Multiply and scale .. ::
+@guvectorize([f'({FX}, {FX}[:], {FX}[:])'], '(),()->()', target=TARGET)
+def imultiply_and_scale_gufunc(scale, values, out):
+    """Augmented assigment multiply and scale .. ::
 
-        out *= scale * value
+        out[:] *= scale * values[:]
 
     """
-    out[0] *= scale[0] * value[0]
+    out[0] *= scale * values[0]
 
 
-@guvectorize([f'({FX}[:], {FX}[:], {FX}[:])'], '(),()->()', target=TARGET)
-def scale_gufunc(scale, value, out):
+@guvectorize([f'({FX}, {FX}[:], {FX}[:])'], '(),()->()', target=TARGET)
+def scale_gufunc(scale, values, out):
     """Scale .. ::
 
-        out = scale * value
+        out[:] = scale * values[:]
 
     """
-    out[0] = scale[0] * value[0]
+    out[0] = scale[0] * values[0]
 
 
 @guvectorize([f'({FX}[:], {FX}[:])'], '()->()', target=TARGET)
-def multiply_gufunc(multiplier, out):
-    """Multipy one array by another .. ::
+def imultiply_gufunc(values, out):
+    """Multipy augmented assignment .. ::
 
-        out *= multiplier
+        out[:] *= values[:]
 
     """
-    out[0] *= multiplier[0]
+    out[0] *= values[0]
 
 
 @guvectorize([f'({FX}[:], {FX}[:])'], '()->()', target=TARGET)
-def divide_gufunc(divisor, out):
-    """Divide one array by another .. ::
+def idivide_gufunc(values, out):
+    """Divide augmented assignment .. ::
 
-        out /= divisor
+        out[:] /= values[:]
 
     Division by zero results in 0 for that element.
     """
-    if divisor[0] == 0.:
+    if values[0] == 0.:
         out[0] = 0.
     else:
-        out[0] /= divisor[0]
+        out[0] /= values[0]
 
 
 @guvectorize([f'({FX}[:], {FX}[:])'], '()->()', target=TARGET)
-def set_gufunc(val, out):
+def set_gufunc(values, out):
     """Set array values from another array .. ::
 
-        out[:] = val[:]
+        out[:] = values[:]
 
     """
-    out[0] = val[0]
+    out[0] = values[0]
 
 
 @guvectorize([f'({FX}[:], {FX}[:])'], '()->()', target=TARGET)
-def square_gufunc(val, out):
+def square_gufunc(values, out):
     """Square values .. ::
 
-        out = val**2
+        out[:] = values[:]**2
 
     """
-    out[0] = val[0]**2
+    out[0] = values[0]**2
 
 
 @guvectorize([f'({FX}[:], {FX}[:])'], '()->()', target=TARGET)
-def sqrt_gufunc(val, out):
+def sqrt_gufunc(values, out):
     """Square root of values .. ::
 
-        out = sqrt(val)
+        out[:] = sqrt(values[:])
 
     """
-    out[0] = math.sqrt(val[0])
+    out[0] = math.sqrt(values[0])
 
 
 @guvectorize([f'({FX}[:], i4[:], {FX}[:], {FX}[:])'], '(),(),()->()', target=TARGET)
-def replace_gufunc(counts, min_count, vals, out):
-    """Replace `out[i]` with `vals[i]` when `counts[i]` > `min_count`"""
+def replace_gufunc(counts, min_count, values, out):
+    """Replace `out[i]` with `values[i]` when `counts[i]` > `min_count`"""
     if counts[0] > min_count[0]:
-        out[0] = vals[0]
+        out[0] = values[0]
 
 
-def test_multiply_and_scale():
-    """Unit tests for function ``multiply_and_scale``"""
+def test_imultiply_and_scale():
+    """Unit tests for function ``imultiply_and_scale``"""
     from numba import SmartArray
     a = np.linspace(0, 1, 1000, dtype=FTYPE)
     a = SmartArray(a)
@@ -192,10 +210,10 @@ def test_multiply_and_scale():
     out = np.ones_like(a)
     out = SmartArray(out)
 
-    multiply_and_scale(10., a, out)
+    imultiply_and_scale(10., a, out)
 
     assert np.allclose(out.get('host'), np.linspace(0, 10, 1000, dtype=FTYPE))
 
 
 if __name__ == '__main__':
-    test_multiply_and_scale()
+    test_imultiply_and_scale()

@@ -3,58 +3,47 @@
 Stage to transform arrays with weights into actual `histograms`
 that represent event counts
 """
+
 from __future__ import absolute_import, print_function, division
+
 import numpy as np
 
 from pisa import FTYPE
 from pisa.core.pi_stage import PiStage
-from pisa.utils.log import logging
 from pisa.utils.profiler import profile
 from pisa.utils import vectorizer
+
 
 class pi_hist(PiStage):
     """
     stage to histogram events
-
-    Paramaters
-    ----------
-
-    None
-
-    Notes
-    -----
-
     """
-    def __init__(self,
-                 data=None,
-                 params=None,
-                 input_names=None,
-                 output_names=None,
-                 debug_mode=None,
-                 error_method=None,
-                 input_specs=None,
-                 calc_specs=None,
-                 output_specs=None,
-                ):
+    def __init__(
+        self,
+        data=None,
+        params=None,
+        input_names=None,
+        output_names=None,
+        debug_mode=None,
+        error_method=None,
+        input_specs=None,
+        calc_specs=None,
+        output_specs=None,
+    ):
 
         expected_params = ()
         input_names = ()
         output_names = ()
 
         # what are the keys used from the inputs during apply
-        input_apply_keys = ('weights',
-                           )
+        input_apply_keys = ('weights',)
 
         # what are keys added or altered in the calculation used during apply
         assert calc_specs is None
         if error_method in ['sumw2']:
-            output_apply_keys = ('weights',
-                                 'errors',
-                                )
+            output_apply_keys = ('weights', 'errors')
         else:
-            output_apply_keys = ('weights',
-                                )
-
+            output_apply_keys = ('weights',)
 
         # init base class
         super().__init__(
