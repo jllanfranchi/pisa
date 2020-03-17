@@ -193,9 +193,6 @@ def replace_where_counts_gt_gufunc(vals, counts, min_count, out):
 #------------------------------------------------------------------------------#
 
 
-    logging.info('<< PASS : test_multiply_and_scale >>')
-
-
 if __name__ == '__main__':
     set_verbosity(1)
     test_imul_and_scale()
