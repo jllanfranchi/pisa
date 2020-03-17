@@ -103,7 +103,7 @@ def test_imul_and_scale():
     out = np.ones_like(a)
     out = SmartArray(out)
 
-    imul_and_scale(10., a, out)
+    imul_and_scale(vals=a, scale=10., out=out)
 
     assert np.allclose(out.get('host'), np.linspace(0, 10, 1000, dtype=FTYPE))
 
