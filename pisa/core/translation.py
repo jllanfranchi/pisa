@@ -30,6 +30,7 @@ __all__ = [
     'lookup',
     'find_index',
     'find_index_unsafe',
+    'find_index_cuda',
     'test_histogram',
     'test_find_index',
 ]
@@ -41,7 +42,7 @@ FX = 'f4' if FTYPE == np.float32 else 'f8'
 # --------- resampling ------------
 
 def resample(weights, old_sample, old_binning, new_sample, new_binning):
-    """Resample `old_sample` points by histogramming it data with a given `old_binning` into any arbitrary
+    """Resample binned data with a given binning into any arbitrary
     `new_binning`
 
     Paramters
@@ -121,8 +122,7 @@ def histogram(sample, weights, binning, averaged):
 def histogram_gpu(sample, weights, binning, apply_weights=True):  # pylint: disable=missing-docstring
     binning = MultiDimBinning(binning)
 
-    # TODO:
-    # * make for d > 3
+    # TODO: make for d > 3
     if binning.num_dims in [2, 3]:
         bin_edges = [edges.magnitude for edges in binning.bin_edges]
         if len(weights.shape) > 1:
@@ -187,7 +187,7 @@ def histogram_gpu(sample, weights, binning, apply_weights=True):  # pylint: disa
         return flat_hist
     else:
         raise NotImplementedError(
-            'Other dimesnions that 2 and 3 on the GPU not supported right now'
+            'Dimensionality other than 2 or 3 not supported on the GPU'
         )
 
 histogram_gpu.__doc__ = histogram.__doc__
@@ -229,7 +229,6 @@ def histogram_2d_kernel(
 ):
     i = cuda.grid(1)
     if i < sample_x.size:
-        # Note the following logic handles NaN correctly
         if (
             sample_x[i] >= bin_edges_x[0]
             and sample_x[i] <= bin_edges_x[-1]
@@ -243,6 +242,7 @@ def histogram_2d_kernel(
                 cuda.atomic.add(flat_hist, idx, weights[i])
             else:
                 cuda.atomic.add(flat_hist, idx, 1.)
+        # else: outside of binning or nan; nothing to do
 
 
 @cuda.jit
@@ -257,7 +257,6 @@ def histogram_2d_kernel_arrays(
 ):
     i = cuda.grid(1)
     if i < sample_x.size:
-        # Note the following logic handles NaN correctly
         if (
             sample_x[i] >= bin_edges_x[0]
             and sample_x[i] <= bin_edges_x[-1]
@@ -272,6 +271,7 @@ def histogram_2d_kernel_arrays(
                     cuda.atomic.add(flat_hist, (idx, j), weights[i, j])
                 else:
                     cuda.atomic.add(flat_hist, (idx, j), 1.)
+        # else: outside of binning or nan; nothing to do
 
 
 @cuda.jit
@@ -288,7 +288,6 @@ def histogram_3d_kernel(
 ):
     i = cuda.grid(1)
     if i < sample_x.size:
-        # Note the following logic handles NaN correctly
         if (
             sample_x[i] >= bin_edges_x[0]
             and sample_x[i] <= bin_edges_x[-1]
@@ -309,6 +308,7 @@ def histogram_3d_kernel(
                 cuda.atomic.add(flat_hist, idx, weights[i])
             else:
                 cuda.atomic.add(flat_hist, idx, 1.)
+        # else: outside of binning or nan; nothing to do
 
 
 @cuda.jit
@@ -325,7 +325,6 @@ def histogram_3d_kernel_arrays(
 ):
     i = cuda.grid(1)
     if i < sample_x.size:
-        # Note the following logic handles NaN correctly
         if (
             sample_x[i] >= bin_edges_x[0]
             and sample_x[i] <= bin_edges_x[-1]
@@ -347,6 +346,7 @@ def histogram_3d_kernel_arrays(
                     cuda.atomic.add(flat_hist, (idx, j), weights[i, j])
                 else:
                     cuda.atomic.add(flat_hist, (idx, j), 1.)
+        # else: outside of binning or nan; nothing to do
 
 
 # ---------- Lookup methods ---------------
@@ -471,19 +471,17 @@ def find_index(val, bin_edges):
     underflow_idx = -1
     overflow_idx = num_bins
 
-    # First check: NaN or ouside binning?
-    if np.isnan(val):
+    if val >= bin_edges[0]:
+        if val <= bin_edges[-1]:
+            bin_idx = find_index_unsafe(val, bin_edges)
+            # Paranoia: In case of unforseen numerical issues, force clipping of
+            # returned bin index to [0, num_bins - 1] (any `val` outside of binning
+            # is already handled, so this should be valid)
+            bin_idx = min(max(0, bin_idx), num_bins - 1)
+        else:
+            bin_idx = overflow_idx
+    else:  # either value is below first bin or is NaN
         bin_idx = underflow_idx
-    elif val < bin_edges[0]:
-        bin_idx = underflow_idx
-    elif val > bin_edges[-1]:
-        bin_idx = overflow_idx
-    else:
-        bin_idx = find_index_unsafe(val, bin_edges)
-        # Paranoia: In case of unforseen numerical issues, force clipping of
-        # returned bin index to [0, num_bins - 1] (any `val` outside of binning
-        # is already handled, so this should be valid)
-        bin_idx = min(max(0, bin_idx), num_bins - 1)
 
     return bin_idx
 
@@ -533,6 +531,23 @@ def find_index_unsafe(val, bin_edges):
     return left_edge_idx - 1
 
 
+@cuda.jit
+def find_index_cuda(val, bin_edges, out):
+    """CUDA wrapper of `find_index` kernel e.g. for running tests on GPU
+
+    Parameters
+    ----------
+    val : array
+    bin_edges : array
+    out : array of same size as `val`
+        Results are stored to `out`
+
+    """
+    i = cuda.grid(1)
+    if i < val.size:
+        out[i] = find_index(val[i], bin_edges)
+
+
 @guvectorize(
     [f'({FX}[:], {FX}[:], {FX}[:], {FX}[:], {FX}[:], {FX}[:])'],
     '(), (), (j), (k), (l) -> ()',
@@ -549,7 +564,6 @@ def lookup_vectorized_2d(
     """Vectorized gufunc to perform the lookup"""
     x = sample_x[0]
     y = sample_y[0]
-    # Note the following logic handles NaN correctly
     if (
         x >= bin_edges_x[0]
         and x <= bin_edges_x[-1]
@@ -560,7 +574,7 @@ def lookup_vectorized_2d(
         idx_y = find_index_unsafe(y, bin_edges_y)
         idx = idx_x * (len(bin_edges_y) - 1) + idx_y
         weights[0] = flat_hist[idx]
-    else:
+    else:  # outside of binning or nan
         weights[0] = 0.
 
 
@@ -582,7 +596,6 @@ def lookup_vectorized_2d_arrays(
     """
     x = sample_x[0]
     y = sample_y[0]
-    # Note the following logic handles NaN correctly
     if (
         x >= bin_edges_x[0]
         and x <= bin_edges_x[-1]
@@ -594,7 +607,7 @@ def lookup_vectorized_2d_arrays(
         idx = idx_x * (len(bin_edges_y) - 1) + idx_y
         for i in range(weights.size):
             weights[i] = flat_hist[idx, i]
-    else:
+    else:  # outside of binning or nan
         for i in range(weights.size):
             weights[i] = 0.
 
@@ -618,7 +631,6 @@ def lookup_vectorized_3d(
     x = sample_x[0]
     y = sample_y[0]
     z = sample_z[0]
-    # Note the following logic handles NaN correctly
     if (
         x >= bin_edges_x[0]
         and x <= bin_edges_x[-1]
@@ -632,7 +644,7 @@ def lookup_vectorized_3d(
         idx_z = find_index_unsafe(z, bin_edges_z)
         idx = (idx_x * (len(bin_edges_y) - 1) + idx_y) * (len(bin_edges_z) - 1) + idx_z
         weights[0] = flat_hist[idx]
-    else:
+    else:  # outside of binning or nan
         weights[0] = 0.
 
 
@@ -656,7 +668,6 @@ def lookup_vectorized_3d_arrays(
     x = sample_x[0]
     y = sample_y[0]
     z = sample_z[0]
-    # Note the following logic handles NaN correctly
     if (
         x >= bin_edges_x[0]
         and x <= bin_edges_x[-1]
@@ -671,13 +682,17 @@ def lookup_vectorized_3d_arrays(
         idx = (idx_x * (len(bin_edges_y) - 1) + idx_y) * (len(bin_edges_z) - 1) + idx_z
         for i in range(weights.size):
             weights[i] = flat_hist[idx, i]
-    else:
+    else:  # outside of binning or nan
         for i in range(weights.size):
             weights[i] = 0.
 
 
 def test_histogram():
-    """Unit tests for `histogram` function"""
+    """Unit tests for `histogram` function.
+
+    Correctness is defined as matching the histogram produced by
+    numpy.histogramdd.
+    """
     all_num_bins = [2, 3, 4]
     n_evts = 10000
     rand = np.random.RandomState(seed=0)
@@ -718,10 +733,11 @@ def test_histogram():
 def test_find_index():
     """Unit tests for `find_index` function.
 
-    Correctness is defined as, using the result and producing a histogram,
-    giving the same histogram as numpy.histogramdd. Additionally, -1 should be
-    returned if a value is below the range or is nan, and num_bins should be
-    returned for a value above the range.
+    Correctness is defined as producing the same histogram as numpy.histogramdd
+    by using the output of `find_index` (ignoring underflow and overflow values).
+    Additionally, -1 should be returned if a value is below the range
+    (underflow) or is nan, and num_bins should be returned for a value above
+    the range (overflow).
     """
     # Negative, positive, integer, non-integer, binary-unrepresentable (0.1) edges
     basic_bin_edges = [-1, -0.5, -0.1, 0, 0.1, 0.5, 1, 2, 3, 4]
@@ -754,7 +770,7 @@ def test_find_index():
             if len(bin_edges) < 2:
                 continue
             logging.debug('bin_edges being tested: %s', bin_edges)
-            bin_edges = np.array(bin_edges, dtype=FTYPE)
+            bin_edges = SmartArray(np.array(bin_edges, dtype=FTYPE))
 
             num_bins = len(bin_edges) - 1
             underflow_idx = -1
@@ -821,7 +837,18 @@ def test_find_index():
                     assert len(nonzero_indices) == 1
                     expected_idx = nonzero_indices[0]
 
-                found_idx = find_index(val, bin_edges)
+                if TARGET == 'cpu':
+                    found_idx = find_index(val, bin_edges)
+                elif TARGET == 'cuda':
+                    found_idx_ary = SmartArray(np.zeros(1, dtype=np.int))
+                    find_index_cuda(
+                        SmartArray(np.array([val], dtype=FTYPE)).get('gpu'),
+                        bin_edges.get('gpu'),
+                        found_idx_ary,
+                    )
+                    found_idx = found_idx_ary.get()[0]
+                else:
+                    raise NotImplementedError(f"TARGET='{TARGET}'")
 
                 if found_idx != expected_idx:
                     msg = 'val={}, edges={}: Expected idx={}, found idx={}'.format(
