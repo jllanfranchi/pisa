@@ -1,4 +1,4 @@
-# pylint: disable=redefined-outer-name
+# pylint: disable=redefined-outer-name, missing-docstring
 
 
 """
@@ -7,213 +7,192 @@ Collection of useful vectorized functions
 
 from __future__ import absolute_import, print_function
 
-__version__ = '0.1'
-__author__ = 'Philipp Eller (pde3@psu.edu)'
-
 import math
 
 import numpy as np
-from numba import guvectorize
+from numba import guvectorize, SmartArray
 
 from pisa import FTYPE, TARGET
+from pisa.utils.log import logging, set_verbosity
 from pisa.utils.numba_tools import WHERE
+
+
+__all__ = [
+    'mul',
+    'imul',
+    'imul_and_scale',
+    'itruediv',
+    'assign',
+    'pow',
+    'sqrt',
+    'replace_where_counts_gt',
+]
+
+__version__ = '0.2'
+__author__ = 'Philipp Eller (pde3@psu.edu)'
 
 
 FX = 'f4' if FTYPE == np.float32 else 'f8'
 
 
-def imultiply_and_scale(scale, values, out):
-    """Multiply and scale augmented assignment .. ::
+#------------------------------------------------------------------------------#
 
-        out[:] *= scale * values[:]
+def scale(vals, scale, out):
+    """Multiply .. ::
 
-    Parameters
-    ----------
-    scale : scalar
-    values : SmartArray
-    out : SmartArray
+        out[:] = vals[:] * scale
 
     """
-    imultiply_and_scale_gufunc(scale, values.get(WHERE), out=out.get(WHERE))
+    scale_gufunc(vals.get(WHERE), scale, out=out.get(WHERE))
     out.mark_changed(WHERE)
 
+@guvectorize([f'({FX}[:], {FX}, {FX}[:])'], '(), () -> ()', target=TARGET)
+def scale_gufunc(vals, scale, out):
+    out[0] = vals[0] * scale
 
-def scale(scale, values, out):
-    """Scale .. ::
+#------------------------------------------------------------------------------#
 
-        out[:] = scale * values[:]
+def mul(vals0, vals1, out):
+    """Multiply .. ::
 
-    Parameters
-    ----------
-    scale : scalar
-    values : array
-    out : array
+        out[:] = vals0[:] * vals1[:]
 
     """
-    scale_gufunc(scale, values.get(WHERE), out=out.get(WHERE))
+    mul_gufunc(vals0.get(WHERE), vals1.get(WHERE), out=out.get(WHERE))
     out.mark_changed(WHERE)
 
+@guvectorize([f'({FX}[:], {FX}[:], {FX}[:])'], '(), () -> ()', target=TARGET)
+def mul_gufunc(vals0, vals1, out):
+    out[0] = vals0[0] * vals1[0]
 
-def imultiply(values, out):
+#------------------------------------------------------------------------------#
+
+def imul(vals, out):
     """Multiply augmented assignment of two arrays .. ::
 
-        out[:] *= values[:]
-
-    Parameters
-    ----------
-    values : SmartArray
-    out : SmartArray
+        out[:] *= vals[:]
 
     """
-    imultiply_gufunc(values.get(WHERE), out=out.get(WHERE))
+    imul_gufunc(vals.get(WHERE), out=out.get(WHERE))
     out.mark_changed(WHERE)
 
+@guvectorize([f'({FX}[:], {FX}[:])'], '() -> ()', target=TARGET)
+def imul_gufunc(vals, out):
+    out[0] *= vals[0]
 
-def idivide(values, out):
-    """Divide augmented assignment .. ::
+#------------------------------------------------------------------------------#
 
-        out[:] /= values[:]
+def imul_and_scale(vals, scale, out):
+    """Multiply and scale augmented assignment .. ::
 
-    Division by zero results in 0 for that element.
+        out[:] *= vals[:] * scale
+
     """
-    idivide_gufunc(values.get(WHERE), out=out.get(WHERE))
+    imul_and_scale_gufunc(vals.get(WHERE), scale, out=out.get(WHERE))
     out.mark_changed(WHERE)
 
+@guvectorize([f'({FX}[:], {FX}, {FX}[:])'], '(), () -> ()', target=TARGET)
+def imul_and_scale_gufunc(vals, scale, out):
+    out[0] *= vals[0] * scale
 
-def set(values, out):  # pylint: disable=redefined-builtin
-    """Set array values from another array .. ::
-
-        out[:] = values[:]
-
-    """
-    set_gufunc(values.get(WHERE), out=out.get(WHERE))
-    out.mark_changed(WHERE)
-
-
-def square(values, out):
-    """Square values .. ::
-
-        out[:] = values[:]**2
-
-    """
-    square_gufunc(values.get(WHERE), out=out.get(WHERE))
-    out.mark_changed(WHERE)
-
-
-def sqrt(values, out):
-    """Square root of values .. ::
-
-        out[:] = sqrt(values[:])
-
-    """
-    sqrt_gufunc(values.get(WHERE), out=out.get(WHERE))
-    out.mark_changed(WHERE)
-
-
-def replace(counts, min_count, values, out):
-    """Replace `out[i]` with `values[i]` when `counts[i]` > `min_count`"""
-    replace_gufunc(
-        counts.get(WHERE),
-        min_count,
-        values.get(WHERE),
-        out=out.get(WHERE),
-    )
-
-
-@guvectorize([f'({FX}, {FX}[:], {FX}[:])'], '(),()->()', target=TARGET)
-def imultiply_and_scale_gufunc(scale, values, out):
-    """Augmented assigment multiply and scale .. ::
-
-        out[:] *= scale * values[:]
-
-    """
-    out[0] *= scale * values[0]
-
-
-@guvectorize([f'({FX}, {FX}[:], {FX}[:])'], '(),()->()', target=TARGET)
-def scale_gufunc(scale, values, out):
-    """Scale .. ::
-
-        out[:] = scale * values[:]
-
-    """
-    out[0] = scale[0] * values[0]
-
-
-@guvectorize([f'({FX}[:], {FX}[:])'], '()->()', target=TARGET)
-def imultiply_gufunc(values, out):
-    """Multipy augmented assignment .. ::
-
-        out[:] *= values[:]
-
-    """
-    out[0] *= values[0]
-
-
-@guvectorize([f'({FX}[:], {FX}[:])'], '()->()', target=TARGET)
-def idivide_gufunc(values, out):
-    """Divide augmented assignment .. ::
-
-        out[:] /= values[:]
-
-    Division by zero results in 0 for that element.
-    """
-    if values[0] == 0.:
-        out[0] = 0.
-    else:
-        out[0] /= values[0]
-
-
-@guvectorize([f'({FX}[:], {FX}[:])'], '()->()', target=TARGET)
-def set_gufunc(values, out):
-    """Set array values from another array .. ::
-
-        out[:] = values[:]
-
-    """
-    out[0] = values[0]
-
-
-@guvectorize([f'({FX}[:], {FX}[:])'], '()->()', target=TARGET)
-def square_gufunc(values, out):
-    """Square values .. ::
-
-        out[:] = values[:]**2
-
-    """
-    out[0] = values[0]**2
-
-
-@guvectorize([f'({FX}[:], {FX}[:])'], '()->()', target=TARGET)
-def sqrt_gufunc(values, out):
-    """Square root of values .. ::
-
-        out[:] = sqrt(values[:])
-
-    """
-    out[0] = math.sqrt(values[0])
-
-
-@guvectorize([f'({FX}[:], i4[:], {FX}[:], {FX}[:])'], '(),(),()->()', target=TARGET)
-def replace_gufunc(counts, min_count, values, out):
-    """Replace `out[i]` with `values[i]` when `counts[i]` > `min_count`"""
-    if counts[0] > min_count[0]:
-        out[0] = values[0]
-
-
-def test_imultiply_and_scale():
-    """Unit tests for function ``imultiply_and_scale``"""
-    from numba import SmartArray
+def test_imul_and_scale():
+    """Unit tests for function ``imul_and_scale``"""
     a = np.linspace(0, 1, 1000, dtype=FTYPE)
     a = SmartArray(a)
 
     out = np.ones_like(a)
     out = SmartArray(out)
 
-    imultiply_and_scale(10., a, out)
+    imul_and_scale(10., a, out)
 
     assert np.allclose(out.get('host'), np.linspace(0, 10, 1000, dtype=FTYPE))
 
+    logging.info('<< PASS : test_multiply_and_scale >>')
+
+#------------------------------------------------------------------------------#
+
+def itruediv(vals, out):
+    """Divide augmented assignment .. ::
+
+        out[:] /= vals[:]
+
+    Division by zero results in 0 for that element.
+    """
+    itruediv_gufunc(vals.get(WHERE), out=out.get(WHERE))
+    out.mark_changed(WHERE)
+
+@guvectorize([f'({FX}[:], {FX}[:])'], '() -> ()', target=TARGET)
+def itruediv_gufunc(vals, out):
+    if vals[0] == 0.:
+        out[0] = 0.
+    else:
+        out[0] /= vals[0]
+
+#------------------------------------------------------------------------------#
+
+def assign(vals, out):  # pylint: disable=redefined-builtin
+    """Assign array vals from another array .. ::
+
+        out[:] = vals[:]
+
+    """
+    assign_gufunc(vals.get(WHERE), out=out.get(WHERE))
+    out.mark_changed(WHERE)
+
+@guvectorize([f'({FX}[:], {FX}[:])'], '() -> ()', target=TARGET)
+def assign_gufunc(vals, out):
+    out[0] = vals[0]
+
+#------------------------------------------------------------------------------#
+
+def pow(vals, pwr, out):  # pylint: disable=redefined-builtin
+    """Raise vals to pwr.. ::
+
+        out[:] = vals[:]**pwr
+
+    """
+    pow_gufunc(vals.get(WHERE), pwr, out=out.get(WHERE))
+    out.mark_changed(WHERE)
+
+@guvectorize([f'({FX}[:], {FX}, {FX}[:])'], '(), () -> ()', target=TARGET)
+def pow_gufunc(vals, pwr, out):
+    out[0] = vals[0]**pwr
+
+#------------------------------------------------------------------------------#
+
+def sqrt(vals, out):
+    """Square root of vals .. ::
+
+        out[:] = sqrt(vals[:])
+
+    """
+    sqrt_gufunc(vals.get(WHERE), out=out.get(WHERE))
+    out.mark_changed(WHERE)
+
+@guvectorize([f'({FX}[:], {FX}[:])'], '() -> ()', target=TARGET)
+def sqrt_gufunc(vals, out):
+    out[0] = math.sqrt(vals[0])
+
+#------------------------------------------------------------------------------#
+
+def replace_where_counts_gt(vals, counts, min_count, out):
+    """Replace `out[i]` with `vals[i]` where `counts[i]` > `min_count`"""
+    replace_where_counts_gt_gufunc(
+        counts.get(WHERE),
+        min_count,
+        vals.get(WHERE),
+        out=out.get(WHERE),
+    )
+
+@guvectorize([f'({FX}[:], {FX}[:], i4, {FX}[:])'], '(), (), () -> ()', target=TARGET)
+def replace_where_counts_gt_gufunc(vals, counts, min_count, out):
+    """Replace `out[i]` with `vals[i]` where `counts[i]` > `min_count`"""
+    if counts[0] > min_count:
+        out[0] = vals[0]
+
+#------------------------------------------------------------------------------#
+
 
 if __name__ == '__main__':
-    test_imultiply_and_scale()
+    set_verbosity(1)
+    test_imul_and_scale()

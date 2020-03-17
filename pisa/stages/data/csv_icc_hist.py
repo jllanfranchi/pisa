@@ -96,5 +96,5 @@ class csv_icc_hist(PiStage):
         scale = self.params.atm_muon_scale.m_as('dimensionless')
         for container in self.data:
             vectorizer.scale(
-                scale=scale, values=container['count'], out=container['weights']
+                vals=container['count'], scale=scale, out=container['weights']
             )

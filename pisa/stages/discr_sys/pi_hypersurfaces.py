@@ -229,12 +229,10 @@ class pi_hypersurfaces(PiStage): # pylint: disable=invalid-name
                                      container["errors"].get(WHERE),
                                     )
                 else:
-                    vectorizer.imultiply(
-                        container["hs_scales"], out=container["errors"]
-                    )
+                    vectorizer.imul(container["hs_scales"], out=container["errors"])
                 container['errors'].mark_changed()
             # Update weights according to hypersurfaces
-            vectorizer.imultiply(container["hs_scales"], out=container["weights"])
+            vectorizer.imul(container["hs_scales"], out=container["weights"])
             container['weights'].mark_changed()
             # Correct negative event counts that can be introduced by hypersurfaces (due to intercept)
             weights = container["weights"].get('host')

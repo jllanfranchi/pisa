@@ -9,7 +9,7 @@ from pisa.utils import vectorizer
 from pisa.utils.profiler import profile
 
 
-class pi_weight(PiStage):
+class pi_weight(PiStage):  # pylint: disable=invalid-name
     """
     PISA Pi stage to apply weights.
     This assumes a weight has already been calculated.
@@ -77,7 +77,7 @@ class pi_weight(PiStage):
 
         for container in self.data:
             vectorizer.scale(
+                vals=container['weights'],
                 scale=scale,
-                values=container['weights'],
                 out=container['weights'],
             )

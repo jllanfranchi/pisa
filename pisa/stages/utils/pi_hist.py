@@ -14,7 +14,7 @@ from pisa.utils.profiler import profile
 from pisa.utils import vectorizer
 
 
-class pi_hist(PiStage):
+class pi_hist(PiStage):  # pylint: disable=invalid-name
     """
     stage to histogram events
     """
@@ -86,17 +86,31 @@ class pi_hist(PiStage):
             for container in self.data:
                 # calcualte errors
                 if self.error_method in ['sumw2']:
-                    vectorizer.square(container['weights'], out=container['weights_squared'])
-                    vectorizer.sqrt(container['weights_squared'], out=container['errors'])
+                    vectorizer.pow(
+                        vals=container['weights'],
+                        pwr=2,
+                        out=container['weights_squared'],
+                    )
+                    vectorizer.sqrt(
+                        vals=container['weights_squared'], out=container['errors']
+                    )
 
         elif self.input_mode == 'events':
             for container in self.data:
                 self.data.data_specs = self.input_specs
                 # calcualte errors
                 if self.error_method in ['sumw2']:
-                    vectorizer.square(container['weights'], out=container['weights_squared'])
+                    vectorizer.pow(
+                        vals=container['weights'],
+                        pwr=2,
+                        out=container['weights_squared'],
+                    )
                 self.data.data_specs = self.output_specs
                 container.array_to_binned('weights', self.output_specs, averaged=False)
                 if self.error_method in ['sumw2']:
-                    container.array_to_binned('weights_squared', self.output_specs, averaged=False)
-                    vectorizer.sqrt(container['weights_squared'], out=container['errors'])
+                    container.array_to_binned(
+                        'weights_squared', self.output_specs, averaged=False
+                    )
+                    vectorizer.sqrt(
+                        vals=container['weights_squared'], out=container['errors']
+                    )

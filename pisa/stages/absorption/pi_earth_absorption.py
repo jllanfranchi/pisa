@@ -195,7 +195,7 @@ class pi_earth_absorption(PiStage):
     @profile
     def apply_function(self):
         for container in self.data:
-            vectorizer.imultiply(container['survival_prob'], out=container['weights'])
+            vectorizer.imul(vals=container['survival_prob'], out=container['weights'])
 
     def calculate_xsections(self, flav, nubar, energy):
         '''Calculates the cross-sections on isoscalar targets.

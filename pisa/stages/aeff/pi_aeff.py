@@ -9,7 +9,7 @@ from pisa.utils import vectorizer
 from pisa.utils.profiler import profile
 
 
-class pi_aeff(PiStage):
+class pi_aeff(PiStage):  # pylint: disable=invalid-name
     """
     PISA Pi stage to apply aeff weights.
 
@@ -88,7 +88,6 @@ class pi_aeff(PiStage):
         # right now this stage has no calc mode, as it just applies scales
         # but it could if for example some smoothing will be performed!
 
-
     @profile
     def apply_function(self):
 
@@ -108,8 +107,8 @@ class pi_aeff(PiStage):
             if 'nc' in container.name:
                 scale *= nu_nc_norm
 
-            vectorizer.imultiply_and_scale(
+            vectorizer.imul_and_scale(
+                vals=container['weighted_aeff'],
                 scale=scale,
-                values=container['weighted_aeff'],
                 out=container['weights'],
             )

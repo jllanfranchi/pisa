@@ -36,30 +36,30 @@ class pi_mceq_barr(PiStage):
     params : ParamSet
         Must exclusively have parameters: .. ::
 
-    	    delta_index : quantity (dimensionless)
-		    	Shift in the spectral index of the neutrino flux. Prior with a mean of 0.
+            delta_index : quantity (dimensionless)
+                Shift in the spectral index of the neutrino flux. Prior with a mean of 0.
 
-    	    energy_pivot : quantity (GeV)
-		    	The spectral index is shifting around a pivot point
+            energy_pivot : quantity (GeV)
+                The spectral index is shifting around a pivot point
 
-    	    barr_*_Pi : quantity (dimensionless)
-    	    	* from a to i
+            barr_*_Pi : quantity (dimensionless)
+                * from a to i
                 Uncertainty on pi+ production in a region of phase space *,
                 further defined in Barr 2006
 
-    	    pion_ratio : quantity (dimensionless)
+            pion_ratio : quantity (dimensionless)
                 The uncertainty on pi- production is assumed to be correlated
                 to the pi+ production uncertainty,
                 as the pi+/pi- ratio is measured. Thus the uncertainty on pi-
                 production is defined by pion_ratio and barr_*_pi
 
-    	    barr_*_K : quantity (dimensionless)
-    	    	* from w to z
+            barr_*_K : quantity (dimensionless)
+                * from w to z
                 Uncertainty on K+ production in a region of phase space *,
                 further defined in Barr 2006
 
-    	    barr_*_antiK : quantity (dimensionless)
-    	    	* from w to z
+            barr_*_antiK : quantity (dimensionless)
+                * from w to z
                 Uncertainty on K- and K+ production is assumed to be
                 uncorrelated as the ratio is badly determined.
 
@@ -69,7 +69,7 @@ class pi_mceq_barr(PiStage):
     spectral index, and then modifications due to meson production (barr
     variables) are added.
 
-	The MCEq-table has 2 solutions of the cascade equation per Barr variable (12)
+    The MCEq-table has 2 solutions of the cascade equation per Barr variable (12)
     - one solution for meson and one solution for the antimeson production uncertainty.
     Each solution consists of 8 splines: "numu", "numubar", "nue", and "nuebar"
     is the nominal flux.

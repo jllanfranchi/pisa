@@ -71,16 +71,16 @@ def resample(weights, old_sample, old_binning, new_sample, new_binning):
 
     flat_hist = hist_func(old_sample, weights, new_binning, apply_weights=True)
     flat_hist_counts = hist_func(old_sample, weights, new_binning, apply_weights=False)
-    vectorizer.idivide(values=flat_hist_counts, out=flat_hist)
+    vectorizer.itruediv(flat_hist_counts, out=flat_hist)
 
     # now do the inverse, a lookup of hist vals at `new_sample` points
     new_hist_vals = lookup(new_sample, weights, old_binning)
 
     # Now, for bin we have 1 or less counts, take the lookedup value instead:
-    vectorizer.replace(
+    vectorizer.replace_where_counts_gt(
+        vals=flat_hist,
         counts=flat_hist_counts,
         min_count=1,
-        values=flat_hist,
         out=new_hist_vals,
     )
 
@@ -113,7 +113,7 @@ def histogram(sample, weights, binning, averaged):
 
     if averaged:
         flat_hist_counts = hist_func(sample, weights, binning, apply_weights=False)
-        vectorizer.idivide(values=flat_hist_counts, out=flat_hist)
+        vectorizer.itruediv(flat_hist_counts, out=flat_hist)
 
     return flat_hist
 

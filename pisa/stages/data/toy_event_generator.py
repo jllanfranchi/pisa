@@ -127,4 +127,4 @@ class toy_event_generator(PiStage):
     def apply_function(self):
         # reset weights
         for container in self.data:
-            vectorizer.set(container['initial_weights'], out=container['weights'])
+            vectorizer.assign(container['initial_weights'], out=container['weights'])
