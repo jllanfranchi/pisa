@@ -1236,12 +1236,11 @@ class OneDimBinning(object):
             return self
 
         if self.is_log:
-            spacing_func = np.logspace
-            old_bin_edges = np.log10(self.edge_magnitudes)
+            spacing_func = np.geomspace
         else:  # is_lin
             spacing_func = np.linspace
-            old_bin_edges = self.edge_magnitudes
 
+        old_bin_edges = self.edge_magnitudes
         new_bin_edges = []
         for lower, upper in zip(old_bin_edges[:-1], old_bin_edges[1:]):
             thisbin_new_edges = spacing_func(lower, upper, factor + 1)
@@ -1252,7 +1251,8 @@ class OneDimBinning(object):
 
         # Include the uppermost bin edge
         new_bin_edges.append(thisbin_new_edges[-1])
-
+        # Check consistency
+        assert set(old_bin_edges).issubset(set(new_bin_edges))
         return {'bin_edges': new_bin_edges,
                 'units': self.units,
                 'bin_names': None}
