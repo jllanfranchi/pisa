@@ -1156,10 +1156,6 @@ class OneDimBinning(object):
             logging.trace('Incompatible units')
             return False
 
-        if self.bin_names != other.bin_names:
-            logging.trace('Bin names do not match')
-            return False
-
         # TODO: should we force normalization?
         # TODO: Should we use FTYPE_SIGFIGS or # HASH_SIGFIGS?
         if self.normalize_values:
@@ -2907,7 +2903,14 @@ def test_OneDimBinning():
     assert b1.basename_binning == b1.basename_binning
     assert b1.basename_binning == b3.basename_binning
     assert b1.basename_binning != b2.basename_binning
-
+    
+    # Oversampling/downsampling
+    b1_over = b1.oversample(2)
+    b1_down = b1.downsample(2)
+    assert b1_down.is_compat(b1)
+    assert b1.is_compat(b1_over)
+    assert b1_down.is_compat(b1_over)
+    
     logging.debug('len(b1): %s', len(b1))
     logging.debug('b1: %s', b1)
     logging.debug('b2: %s', b2)
