@@ -240,7 +240,7 @@ class OneDimBinning(object):
     #   backwards compatibility (including for state / hashes), both are kept
     #   (for now) as "state" variables. -JLL, April, 2020
 
-    _hash_attrs = ('name', 'tex', 'bin_edges', 'is_log', 'is_lin', 'bin_names')
+    _hash_attrs = ('name', 'tex', 'bin_edges', 'is_log', 'is_lin', 'bin_names', 'units')
 
     def __init__(self, name, tex=None, bin_edges=None, units=None, domain=None,
                  num_bins=None, is_lin=None, is_log=None, bin_names=None):
