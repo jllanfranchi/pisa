@@ -1248,8 +1248,16 @@ class OneDimBinning(object):
 
         # Include the uppermost bin edge
         new_bin_edges.append(thisbin_new_edges[-1])
-        # Check consistency
-        assert set(old_bin_edges).issubset(set(new_bin_edges))
+        new_bin_edges = np.array(new_bin_edges)
+        # "snap" edges to the exact value of the original binning to deal with numerical
+        # errors
+        if not set(old_bin_edges).issubset(set(new_bin_edges)):
+            for edge in old_bin_edges:
+                is_close_filt = np.isclose(edge, new_bin_edges, **ALLCLOSE_KW)
+                if np.any(is_close_filt):
+                    new_bin_edges[is_close_filt] = edge
+            # Check consistency
+            assert set(old_bin_edges).issubset(set(new_bin_edges))
         return {'bin_edges': new_bin_edges,
                 'units': self.units,
                 'bin_names': None}
