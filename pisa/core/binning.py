@@ -32,6 +32,7 @@ import numpy as np
 
 from pisa import FTYPE, HASH_SIGFIGS, ureg
 from pisa.utils.comparisons import interpret_quantity, normQuant, recursiveEquality
+from pisa.utils.comparisons import ALLCLOSE_KW
 from pisa.utils.format import (make_valid_python_name, text2tex,
                                strip_outer_dollars)
 from pisa.utils.hash import hash_obj
@@ -1066,7 +1067,7 @@ class OneDimBinning(object):
                 log_spacing = bin_edges[1:] / bin_edges[:-1]
             except (AssertionError, FloatingPointError, ZeroDivisionError):
                 return False
-        if np.allclose(log_spacing, log_spacing[0]):
+        if np.allclose(log_spacing, log_spacing[0], **ALLCLOSE_KW):
             return True
         return False
 
@@ -1102,7 +1103,7 @@ class OneDimBinning(object):
         if len(bin_edges) == 2:
             return True
         lin_spacing = np.diff(bin_edges)
-        if np.allclose(lin_spacing, lin_spacing[0]):
+        if np.allclose(lin_spacing, lin_spacing[0], **ALLCLOSE_KW):
             return True
         return False
 
@@ -2906,10 +2907,45 @@ def test_OneDimBinning():
     
     # Oversampling/downsampling
     b1_over = b1.oversample(2)
+    assert b1_over.is_bin_spacing_log_uniform(b1_over.bin_edges)
     b1_down = b1.downsample(2)
+    assert b1_down.is_bin_spacing_log_uniform(b1_down.bin_edges)
     assert b1_down.is_compat(b1)
     assert b1.is_compat(b1_over)
     assert b1_down.is_compat(b1_over)
+    
+    # Bin width consistency
+    assert np.isclose(
+        np.sum(b1_over.bin_widths.m),
+        np.sum(b1.bin_widths.m),
+        **ALLCLOSE_KW,
+    )
+    assert np.isclose(
+        np.sum(b1_down.bin_widths.m),
+        np.sum(b1.bin_widths.m),
+        **ALLCLOSE_KW,
+    )
+    assert np.isclose(
+        np.sum(b1_over.bin_widths.m),
+        np.sum(b1_down.bin_widths.m),
+        **ALLCLOSE_KW,
+    )
+    # Weighted bin widths must also sum up to the same total width
+    assert np.isclose(
+        np.sum(b1_over.weighted_bin_widths.m),
+        np.sum(b1.weighted_bin_widths.m),
+        **ALLCLOSE_KW,
+    )
+    assert np.isclose(
+        np.sum(b1_down.weighted_bin_widths.m),
+        np.sum(b1.weighted_bin_widths.m),
+        **ALLCLOSE_KW,
+    )
+    assert np.isclose(
+        np.sum(b1_over.weighted_bin_widths.m),
+        np.sum(b1_down.weighted_bin_widths.m),
+        **ALLCLOSE_KW,
+    )
     
     logging.debug('len(b1): %s', len(b1))
     logging.debug('b1: %s', b1)
