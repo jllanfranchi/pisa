@@ -3119,7 +3119,8 @@ def test_MultiDimBinning():
 
     assert binning.oversample(10, 1).shape == (400, 20)
     assert binning.oversample(1, 3).shape == (40, 60)
-
+    assert binning.downsample(4, 2).shape == (10, 10)
+    
     assert binning.oversample(coszen=10, energy=2).shape == (80, 200)
     assert binning.oversample(1, 1) == binning
 
@@ -3139,7 +3140,26 @@ def test_MultiDimBinning():
     binning.to('MeV', None)
     binning.to('MeV', '')
     binning.to(ureg.joule, '')
-
+    
+    oversampled = binning.oversample(10, 3)
+    assert oversampled.shape == (400, 60)
+    downsampled = binning.downsample(4, 2)
+    assert downsampled.shape == (10, 10)
+    
+    over_vols = oversampled.bin_volumes(attach_units=False)
+    down_vols = downsampled.bin_volumes(attach_units=False)
+    norm_vols = binning.bin_volumes(attach_units=False)
+    assert np.isclose(np.sum(over_vols), np.sum(norm_vols), **ALLCLOSE_KW)
+    assert np.isclose(np.sum(down_vols), np.sum(norm_vols), **ALLCLOSE_KW)
+    assert np.isclose(np.sum(down_vols), np.sum(over_vols), **ALLCLOSE_KW)
+    
+    over_vols = oversampled.weighted_bin_volumes(attach_units=False)
+    down_vols = downsampled.weighted_bin_volumes(attach_units=False)
+    norm_vols = binning.weighted_bin_volumes(attach_units=False)
+    assert np.isclose(np.sum(over_vols), np.sum(norm_vols), **ALLCLOSE_KW)
+    assert np.isclose(np.sum(down_vols), np.sum(norm_vols), **ALLCLOSE_KW)
+    assert np.isclose(np.sum(down_vols), np.sum(over_vols), **ALLCLOSE_KW)
+    
     testdir = tempfile.mkdtemp()
     try:
         b_file = os.path.join(testdir, 'multi_dim_binning.json')
