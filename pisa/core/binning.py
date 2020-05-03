@@ -977,7 +977,7 @@ class OneDimBinning(object):
         if self._weighted_bin_widths is None:
             if self.is_log:
                 self._weighted_bin_widths = (
-                    self.edge_magnitudes[1:] / self.edge_magnitudes[:-1]
+                    np.log(self.edge_magnitudes[1:] / self.edge_magnitudes[:-1])
                 ) * ureg.dimensionless
             else:
                 self._weighted_bin_widths = self.bin_widths
